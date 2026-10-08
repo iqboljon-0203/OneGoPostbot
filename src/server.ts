@@ -9,7 +9,14 @@ import {
   getTicket,
   trackEvent,
   getAnalyticsSummary,
+  getDailyAnalytics,
 } from './db/database';
+import {
+  getTopicLabel,
+  CATEGORY_LABELS,
+  STATUS_LABELS,
+  FAQ_LABELS,
+} from './bot/messages';
 
 // ─── Express App Factory ────────────────────────────────────────
 
@@ -212,6 +219,18 @@ export function createServer(): express.Application {
     }
   });
 
+  // ─── GET /api/v1/analytics/daily ──────────────────────────────
+  app.get('/api/v1/analytics/daily', (req: Request, res: Response) => {
+    try {
+      const date = (req.query.date as string) || undefined;
+      const daily = getDailyAnalytics(date);
+      res.json({ success: true, ...daily });
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'REST daily analytics error');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // ─── GET /support/chat — Universal Link & Smart Mobile Deep Link ───
   app.get('/support/chat', (req: Request, res: Response) => {
     const orderId = (req.query.order_id as string) || '';
@@ -227,8 +246,9 @@ export function createServer(): express.Application {
 
     const appStoreUrl = env.APP_STORE_URL;
     const playStoreUrl = env.PLAY_STORE_URL;
-    const appCustomScheme = `onegopost://help/chat?order_id=${encodeURIComponent(orderId)}&issue=${encodeURIComponent(issue)}&ticket_id=${encodeURIComponent(ticketId)}`;
-    const androidIntentUrl = `intent://help/chat?order_id=${encodeURIComponent(orderId)}&issue=${encodeURIComponent(issue)}&ticket_id=${encodeURIComponent(ticketId)}#Intent;scheme=onegopost;package=com.wangouyou.onegopost;end`;
+    const webAppUrl = env.WEB_APP_DOWNLOAD_URL;
+    const appCustomScheme = `onegopost://support/chat?order_id=${encodeURIComponent(orderId)}&issue=${encodeURIComponent(issue)}&ticket_id=${encodeURIComponent(ticketId)}`;
+    const androidIntentUrl = `intent://support/chat?order_id=${encodeURIComponent(orderId)}&issue=${encodeURIComponent(issue)}&ticket_id=${encodeURIComponent(ticketId)}#Intent;scheme=onegopost;package=com.wangouyou.onegopost;end`;
 
     const t = {
       uz: {
@@ -501,15 +521,16 @@ export function createServer(): express.Application {
     <div class="meta-box">
       ${ticketId ? `<div class="meta-row"><span>${t.ticketNum}:</span> <strong>${ticketId}</strong></div>` : ''}
       ${orderId ? `<div class="meta-row"><span>${t.orderNum}:</span> <strong>${orderId}</strong></div>` : ''}
-      ${issue ? `<div class="meta-row"><span>${t.topic}:</span> <strong>${issue}</strong></div>` : ''}
+      ${issue ? `<div class="meta-row"><span>${t.topic}:</span> <strong>${getTopicLabel(issue, lang)}</strong></div>` : ''}
     </div>` : ''}
 
-    <a href="${appCustomScheme}" class="btn btn-primary" id="openAppBtn">${t.openAppBtn}</a>
+    <a href="${appCustomScheme}" onclick="if(/Android/i.test(navigator.userAgent)){window.location.href='${androidIntentUrl}';return false;}" class="btn btn-primary" id="openAppBtn">${t.openAppBtn}</a>
 
     <div class="stores-title">${t.storesTitle}</div>
     <div class="stores">
       <a href="${appStoreUrl}" class="btn btn-store" target="_blank">🍏 App Store</a>
       <a href="${playStoreUrl}" class="btn btn-store" target="_blank">🤖 Google Play</a>
+      <a href="${webAppUrl}" class="btn btn-store" target="_blank">🌐 Web sayt (Google)</a>
     </div>
   </div>
 </body>
@@ -520,22 +541,33 @@ export function createServer(): express.Application {
   app.get('/admin', (_req: Request, res: Response) => {
     const summary = getAnalyticsSummary();
     const categoriesHtml = Object.entries(summary.ticketsByCategory)
-      .map(([k, v]) => `<li><span>${k}</span><strong>${v} ta</strong></li>`)
+      .map(([k, v]) => `<li><span>${CATEGORY_LABELS[k] || k}</span><strong>${v} ta</strong></li>`)
       .join('') || '<li class="empty">Hozircha ma\'lumot yo\'q</li>';
 
     const statusHtml = Object.entries(summary.ticketsByStatus)
-      .map(([k, v]) => `<li><span>${k}</span><strong>${v} ta</strong></li>`)
+      .map(([k, v]) => `<li><span>${STATUS_LABELS[k] || k}</span><strong>${v} ta</strong></li>`)
       .join('') || '<li class="empty">Hozircha ma\'lumot yo\'q</li>';
 
     const faqHtml = summary.popularFaqTopics
-      .map((f, i) => `<li><span>${i + 1}. ${f.topic}</span><strong>${f.count} marta</strong></li>`)
+      .map((f, i) => `<li><span>${i + 1}. ${FAQ_LABELS[f.topic] || f.topic}</span><strong>${f.count} marta</strong></li>`)
       .join('') || '<li class="empty">Hozircha ma\'lumot yo\'q</li>';
+
+    const last7DaysRowsHtml =
+      summary.last7Days && summary.last7Days.length > 0
+        ? summary.last7Days
+            .map(
+              (d) =>
+                `<tr><td><code>${d.date}</code></td><td><strong>${d.users}</strong></td><td><strong>${d.searches}</strong></td><td><strong>${d.tickets}</strong></td></tr>`,
+            )
+            .join('')
+        : '<tr><td colspan="4" class="empty">Hozircha ma\'lumot yo\'q</td></tr>';
 
     res.send(`<!DOCTYPE html>
 <html lang="uz">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="30">
   <title>OneGoPost — Admin Analytics Dashboard</title>
   <style>
     :root {
@@ -546,6 +578,7 @@ export function createServer(): express.Application {
       --text: #f8fafc;
       --muted: #94a3b8;
       --accent: #38bdf8;
+      --success: #10b981;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -559,7 +592,7 @@ export function createServer(): express.Application {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
       padding-bottom: 20px;
       border-bottom: 1px solid var(--card-border);
     }
@@ -572,24 +605,38 @@ export function createServer(): express.Application {
       font-size: 13px;
       font-weight: 600;
     }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent);
+      margin: 20px 0 12px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     .grid-stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-      margin-bottom: 28px;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
     }
     .stat-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 14px;
-      padding: 20px;
+      padding: 18px;
     }
-    .stat-label { font-size: 13px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .stat-value { font-size: 32px; font-weight: 700; color: #fff; }
+    .stat-card.today {
+      border-color: rgba(56, 189, 248, 0.3);
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.05) 0%, var(--card-bg) 100%);
+    }
+    .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #fff; }
     .grid-details {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 20px;
+      margin-bottom: 24px;
     }
     .detail-card {
       background: var(--card-bg);
@@ -598,9 +645,9 @@ export function createServer(): express.Application {
       padding: 22px;
     }
     .detail-card h3 {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       color: var(--accent);
       border-bottom: 1px solid rgba(255,255,255,0.08);
       padding-bottom: 10px;
@@ -616,7 +663,11 @@ export function createServer(): express.Application {
     li:last-child { border-bottom: none; }
     li span { color: var(--muted); }
     li strong { color: #fff; font-weight: 600; }
-    li.empty { color: var(--muted); font-style: italic; justify-content: center; }
+    li.empty, td.empty { color: var(--muted); font-style: italic; text-align: center; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
+    th { padding: 10px 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--card-border); }
+    td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    tr:last-child td { border-bottom: none; }
   </style>
 </head>
 <body>
@@ -626,9 +677,34 @@ export function createServer(): express.Application {
         <h1>📊 OneGoPost Support — Boshqaruv Paneli</h1>
         <p style="color: var(--muted); font-size: 14px; margin-top: 4px;">Telegram Bot va Tizim Tahlillari</p>
       </div>
-      <div class="badge">● Tizim Faol</div>
+      <div class="badge">● Jonli Tizim</div>
     </header>
 
+    <div class="section-title">⚡ Bugungi Kunlik Ko'rsatkichlar</div>
+    <div class="grid-stats">
+      <div class="stat-card today">
+        <div class="stat-label">👤 Yangi A'zolar (Bugun)</div>
+        <div class="stat-value" style="color: #38bdf8;">${summary.usersToday}</div>
+      </div>
+      <div class="stat-card today">
+        <div class="stat-label">🔍 Qidiruvlar (Bugun)</div>
+        <div class="stat-value" style="color: #38bdf8;">${summary.searchesToday}</div>
+      </div>
+      <div class="stat-card today">
+        <div class="stat-label">🎫 Yangi Ticketlar (Bugun)</div>
+        <div class="stat-value" style="color: #38bdf8;">${summary.ticketsToday}</div>
+      </div>
+      <div class="stat-card today">
+        <div class="stat-label">✅ Hal Qilindi (Bugun)</div>
+        <div class="stat-value" style="color: #10b981;">${summary.resolvedTicketsToday}</div>
+      </div>
+      <div class="stat-card today">
+        <div class="stat-label">📲 Ilovaga O'tish (Bugun)</div>
+        <div class="stat-value" style="color: #a78bfa;">${summary.deepLinkClicksToday}</div>
+      </div>
+    </div>
+
+    <div class="section-title">🌐 Umumiy Ko'rsatkichlar (Barcha Vaqt)</div>
     <div class="grid-stats">
       <div class="stat-card">
         <div class="stat-label">👥 Jami Foydalanuvchilar</div>
@@ -639,13 +715,34 @@ export function createServer(): express.Application {
         <div class="stat-value">${summary.totalSearches}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">🎫 Yaratilgan Ticketlar</div>
+        <div class="stat-label">🎫 Jami Ticketlar</div>
         <div class="stat-value">${summary.totalTickets}</div>
       </div>
+      <div class="stat-card" style="border-color: #f59e0b;">
+        <div class="stat-label" style="color: #f59e0b;">⏳ Hali Yechilmagan</div>
+        <div class="stat-value" style="color: #fbbf24;">${summary.unresolvedTickets}</div>
+      </div>
       <div class="stat-card">
-        <div class="stat-label">📲 Ilovaga O'tishlar</div>
+        <div class="stat-label">📲 Jami Ilovaga O'tishlar</div>
         <div class="stat-value">${summary.deepLinkClicks}</div>
       </div>
+    </div>
+
+    <div class="detail-card" style="margin-bottom: 24px;">
+      <h3>📅 Oxirgi 7 Kunlik Faollik Dinamikasi</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Sana</th>
+            <th>Yangi Foydalanuvchilar</th>
+            <th>Posilka Qidiruvlari</th>
+            <th>Yaratilgan Ticketlar</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${last7DaysRowsHtml}
+        </tbody>
+      </table>
     </div>
 
     <div class="grid-details">

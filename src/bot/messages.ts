@@ -1,5 +1,5 @@
 import { PackageData, TrackingResult, TrackingCheckpoint, TicketRow, TicketStatus, getStatusText } from '../api/types';
-import type { AnalyticsSummary } from '../db/database';
+import type { AnalyticsSummary, DailyAnalyticsSummary } from '../db/database';
 import { translateLogistics } from '../utils/translator';
 
 // ─── HTML Escaping ──────────────────────────────────────────────
@@ -61,9 +61,12 @@ export const messages = {
       payment: '💰 To\'lov / balans',
       weight: '⚖️ Vazn bo\'yicha savol',
       warehouse: '🏢 Ombor / ID muammosi',
+      tashkentWarehouse: '📍 Toshkent ombori qayerda?',
+      workingHours: '🕒 Ish vaqti',
       faq: '❓ Tez-tez so\'raladigan savollar',
       operator: '👩‍💻 Operator yordami',
       changeLang: '🌐 Tilni o\'zgartirish',
+      adminPanel: '⚙️ Admin panel',
       backToMenu: '🏠 Asosiy menyu',
     },
 
@@ -126,37 +129,47 @@ export const messages = {
         {
           id: 'faq_track',
           q: '📦 Posilkani qanday kuzataman?',
-          a: 'Bosh menyudan "📦 Buyurtmam qayerda?" tugmasini bosing va trek-kodingizni (AWB) kiriting. Tizim avtomatik tarzda posilkaning hozirgi joylashuvi va holatini chiqarib beradi.',
+          a: 'Bosh menyu qismida "📦 Buyurtmam qayerda?" qismidan kuzatib turishingiz mumkin.',
+        },
+        {
+          id: 'faq_awb',
+          q: '🏷 AWB nima?',
+          a: 'AWB — bu tovaringiz trek kodi. U kod asosan buyurtma qilganingizdan so’ng 3–4 kunda saytingizda ko’rinadigan trek raqam hisoblanadi, u raqamni kiritib botimizdan ma’lumot olishingiz mumkin.',
         },
         {
           id: 'faq_time',
           q: '⏰ Yetkazib berish qancha vaqt oladi?',
-          a: '✈️ <b>Avia yetkazib berish:</b> 7–12 ish kuni.\n🚛 <b>Quruqlikdagi yetkazib berish:</b> 15–25 ish kuni.\n\nBojxona tekshiruvi yoki bayram kunlarida muddat biroz uzayishi mumkin.',
+          a: '✈️ <b>Avia:</b> 9.5$ (oddiy buyurtmalarga) dan 11$ (brand, seriya) gacha — 3–7 kunda.\n\n🚛 <b>Avto:</b> 6$ (oddiy buyurtmalarga) dan 7.5$ (brand, seriya) — fura yo‘lga chiqqan kundan boshlab 18–22 kunda.\n\n<b>Minimalka yo‘q!</b>\nBojxona tekshiruvi yoki bayram kunlarida muddat biroz uzayishi mumkin.',
         },
         {
           id: 'faq_pay',
           q: '💰 To\'lov qanday amalga oshiriladi?',
-          a: 'To\'lovlarni OnegoPost mobil ilovasida Click, Payme yoki shaxsiy hisob balansi orqali xavfsiz va tez to\'lashingiz mumkin.',
+          a: 'To\'lovlarni OnegoPost mobil ilovasida Click, Payme yoki naqd pul bilan to’lamoqchi bo’lsangiz shaxsiy hisob balansi orqali xavfsiz va tez to\'lashingiz mumkin.',
+        },
+        {
+          id: 'faq_receive',
+          q: '📬 Buyurtmam O’zbekistonga kelgach qanday olaman?',
+          a: 'Buyurtmangiz O’zbekistonga kelgach ilovangiz yoki saytingizdan SMS xabarnoma keladi. Agar buyurtmangizning kargosiga ya’ni yuk haqqiga to’lov qilgan bo’lsangiz, avtomatik ravishda siz kiritgan manzilga EMU pochta orqali yetkaziladi.',
         },
         {
           id: 'faq_id',
           q: '🆔 Mening shaxsiy ID raqamim nima?',
-          a: 'OnegoPost ilovasida ro\'yxatdan o\'tganingizda sizga 6 xonali unikal ID (masalan: 100081) beriladi. Xitoy saytlaridan xarid qilganda ombor manziliga ushbu ID ni yozishingiz shart!',
+          a: 'OnegoPost ilovasida ro\'yxatdan o\'tganingizda sizga 6 xonali unikal ID (masalan: UZ100081) beriladi.',
         },
         {
           id: 'faq_wh',
           q: '🏢 Xitoy ombor manzili qayerda?',
-          a: 'Xitoydagi omborimizning to\'liq manzili, telefon raqami va indeks ma\'lumotlari OnegoPost mobil ilovasining "Ombor" bo\'limida ko\'rsatilgan.',
+          a: 'Xitoydagi omborimizning to\'liq manzili, telefon raqami va indeks ma\'lumotlari OnegoPost mobil ilovasining "Ombor manzili" bo\'limida ko\'rsatilgan.',
         },
         {
           id: 'faq_weight',
           q: '⚖️ Vazn qanday hisoblanadi?',
-          a: 'Posilka Xitoy omborida elektron tarozida tortiladi. Haqiqiy jismoniy vazn va hajmiy vazn (Uzunlik × Kenglik × Balandlik / 6000) ning eng kattasi hisobga olinadi.',
+          a: 'Posilka Xitoy omborida elektron tarozida tortiladi. Haqiqiy jismoniy vazn hisobga olinadi. Agar tovaringiz hajmi vaznga nisbatan katta bo‘lsa “gabarit” (Uzunlik × Kenglik × Balandlik / 6000) ning eng kattasi hisobga olinadi.',
         },
         {
           id: 'faq_op',
           q: '👩‍💻 Operator bilan qanday bog\'lanaman?',
-          a: 'Bosh menyudan "👩‍💻 Operator yordami" tugmasini bosing yoki @Onegopostadmin bilan to\'g\'ridan-to\'g\'ri bog\'laning.',
+          a: 'Bosh menyudan "👩‍💻 Operator yordami" tugmasini bosing yoki @onegopost_admin bilan to\'g\'ridan-to\'g\'ri bog\'laning.',
         },
         {
           id: 'faq_app',
@@ -166,6 +179,23 @@ export const messages = {
       ],
       back: '⬅️ Savollar ro\'yxatiga qaytish',
     },
+
+    tashkentWarehouseInfo: [
+      `📍 <b>OneGoPost — Toshkent ombori</b>`,
+      ``,
+      `🏢 <b>Mo‘ljal:</b> Toshkent shahri, Yakkasaroy tumani`,
+      `🗺 <b>Lokatsiya:</b> Xaritadagi belgilangan nuqta bo‘yicha`,
+      ``,
+      `Quyidagi tugmalar orqali xaritada qulay ochishingiz mumkin:`,
+    ].join('\n'),
+
+    workingHoursInfo: [
+      `🕒 <b>OneGoPost — Ish vaqti</b>`,
+      ``,
+      `⏰ <b>Ish vaqti:</b> dushanbadan shanbagacha 10:00 / 18:30`,
+      ``,
+      `📢 <i>Bayram kunlari telegram va instagramda e'lon qilinadi.</i>`,
+    ].join('\n'),
 
     appsInfo: [
       `📲 <b>OneGoPost rasmiy mobil ilovasi</b>`,
@@ -200,9 +230,12 @@ export const messages = {
       payment: '💰 Оплата / баланс',
       weight: '⚖️ Вопрос по весу',
       warehouse: '🏢 Проблема со складом / ID',
+      tashkentWarehouse: '📍 Где склад в Ташкенте?',
+      workingHours: '🕒 График работы',
       faq: '❓ Частые вопросы',
       operator: '👩‍💻 Помощь оператора',
       changeLang: '🌐 Сменить язык',
+      adminPanel: '⚙️ Админ-панель',
       backToMenu: '🏠 Главное меню',
     },
 
@@ -265,37 +298,47 @@ export const messages = {
         {
           id: 'faq_track',
           q: '📦 Как отследить заказ?',
-          a: 'В главном меню нажмите "📦 Где мой заказ?" и введите трек-код (AWB). Бот покажет актуальный статус и местонахождение посылки.',
+          a: 'В главном меню через раздел "📦 Где мой заказ?" вы можете отслеживать статус вашей посылки.',
+        },
+        {
+          id: 'faq_awb',
+          q: '🏷 Что такое AWB трек-код?',
+          a: 'AWB — это трек-код вашего товара. Этот номер обычно появляется на сайте через 3–4 дня после оформления заказа, введя его в боте, вы сможете получить информацию о посылке.',
         },
         {
           id: 'faq_time',
           q: '⏰ Сколько времени занимает доставка?',
-          a: '✈️ <b>Авиадоставка:</b> 7–12 рабочих дней.\n🚛 <b>Наземная доставка:</b> 15–25 рабочих дней.\n\nВ период таможенного контроля или праздников сроки могут немного увеличиться.',
+          a: '✈️ <b>Авиа:</b> от $9.5 (обычные заказы) до $11 (бренд, серия) — за 3–7 дней.\n\n🚛 <b>Авто:</b> от $6 (обычные заказы) до $7.5 (бренд, серия) — за 18–22 дня с момента выезда фуры.\n\n<b>Минимального веса нет!</b>\nВ период таможенного контроля или праздников сроки могут немного увеличиться.',
         },
         {
           id: 'faq_pay',
           q: '💰 Как оплатить заказ?',
-          a: 'Оплатить посылку можно в приложении OnegoPost через платежные системы Click, Payme или с баланса личного кабинета.',
+          a: 'Оплатить посылку можно в приложении OnegoPost через платёжные системы Click, Payme или, если хотите оплатить наличными, через пополнение баланса личного кабинета.',
+        },
+        {
+          id: 'faq_receive',
+          q: '📬 Как получить заказ после прибытия в Узбекистан?',
+          a: 'После прибытия вашего заказа в Узбекистан вам придёт SMS-уведомление из приложения или личного кабинета. Если доставка (карго) оплачена, посылка будет автоматически доставлена по указанному вами адресу курьерской службой EMU.',
         },
         {
           id: 'faq_id',
           q: '🆔 Что такое персональный ID клиента?',
-          a: 'При регистрации в приложении OnegoPost вам выдается 6-значный персональный ID (например: 100081). Его обязательно нужно указывать в адресе доставки при покупках в Китае!',
+          a: 'При регистрации в приложении OnegoPost вам выдается 6-значный персональный ID (например: UZ100081).',
         },
         {
           id: 'faq_wh',
           q: '🏢 Где найти адрес склада в Китае?',
-          a: 'Точный адрес нашего склада в Китае, номер телефона и индекс доступны в разделе "Склад" мобильного приложения OnegoPost.',
+          a: 'Точный адрес нашего склада в Китае, номер телефона и индекс доступны в разделе "Адрес склада" мобильного приложения OnegoPost.',
         },
         {
           id: 'faq_weight',
           q: '⚖️ Как рассчитывается вес?',
-          a: 'Вес определяется на складе в Китае на электронных весах. Расчёт ведётся по большему значению: физический или объёмный вес (Длина × Ширина × Высота / 6000).',
+          a: 'Посылка взвешивается на складе в Китае на электронных весах. Учитывается фактический физический вес. Если объём товара превышает вес («габарит»), расчёт ведётся по большему значению: физический или объёмный вес (Длина × Ширина × Высота / 6000).',
         },
         {
           id: 'faq_op',
           q: '👩‍💻 Как связаться с оператором?',
-          a: 'В главном меню нажмите "👩‍💻 Помощь оператора" или свяжитесь напрямую с @Onegopostadmin.',
+          a: 'В главном меню нажмите "👩‍💻 Помощь оператора" или свяжитесь напрямую с @onegopost_admin.',
         },
         {
           id: 'faq_app',
@@ -305,6 +348,23 @@ export const messages = {
       ],
       back: '⬅️ Назад к списку вопросов',
     },
+
+    tashkentWarehouseInfo: [
+      `📍 <b>OneGoPost — Склад в Ташкенте</b>`,
+      ``,
+      `🏢 <b>Ориентир:</b> г. Ташкент, Яккасарайский район`,
+      `🗺 <b>Локация:</b> по точке на карте`,
+      ``,
+      `Вы можете открыть локацию на карте по кнопкам ниже:`,
+    ].join('\n'),
+
+    workingHoursInfo: [
+      `🕒 <b>OneGoPost — График работы</b>`,
+      ``,
+      `⏰ <b>Режим работы:</b> с понедельника по субботу с 10:00 до 18:30`,
+      ``,
+      `📢 <i>В праздничные дни график публикуется в Telegram и Instagram.</i>`,
+    ].join('\n'),
 
     appsInfo: [
       `📲 <b>Официальное мобильное приложение OneGoPost</b>`,
@@ -543,7 +603,7 @@ export function formatComprehensiveTrackingCard(
 
 // ─── Admin Stats Formatter ──────────────────────────────────────
 
-const CATEGORY_LABELS: Record<string, string> = {
+export const CATEGORY_LABELS: Record<string, string> = {
   Delay: TOPIC_LABELS.Delay.uz,
   Payment: TOPIC_LABELS.Payment.uz,
   Weight: TOPIC_LABELS.Weight.uz,
@@ -553,17 +613,19 @@ const CATEGORY_LABELS: Record<string, string> = {
   General: TOPIC_LABELS.General.uz,
 };
 
-const STATUS_LABELS: Record<string, string> = {
+export const STATUS_LABELS: Record<string, string> = {
   new: '🆕 Yangi',
   in_review: '🔍 Ko‘rib chiqilmoqda',
   transferred: '📤 Boshqa bo‘limga yuborildi',
   resolved: '✅ Yechildi',
 };
 
-const FAQ_LABELS: Record<string, string> = {
+export const FAQ_LABELS: Record<string, string> = {
   faq_track: '📦 Posilkani kuzatish',
+  faq_awb: '🏷 AWB trek-kod nima',
   faq_time: '⏰ Yetkazib berish muddati',
   faq_pay: '💰 To‘lov qilish',
+  faq_receive: '📬 O‘zbekistonda qabul qilish',
   faq_id: '🆔 Shaxsiy ID raqam',
   faq_wh: '🏢 Xitoy ombor manzili',
   faq_weight: '⚖️ Vazn hisoblash',
@@ -571,39 +633,150 @@ const FAQ_LABELS: Record<string, string> = {
   faq_app: '📲 Mobil ilovani yuklab olish',
 };
 
-export function formatAdminStats(summary: AnalyticsSummary): string {
+export function formatAdminStats(summary: AnalyticsSummary, lang: 'uz' | 'ru' = 'uz'): string {
   const categoryLines =
     Object.entries(summary.ticketsByCategory)
       .map(([cat, count]) => `  • ${CATEGORY_LABELS[cat] || cat}: <b>${count} ta</b>`)
-      .join('\n') || '  Hozircha yo‘q';
+      .join('\n') || (lang === 'uz' ? '  Hozircha yo‘q' : '  Пока нет');
 
   const statusLines =
     Object.entries(summary.ticketsByStatus)
       .map(([status, count]) => `  • ${STATUS_LABELS[status] || status}: <b>${count} ta</b>`)
-      .join('\n') || '  Hozircha yo‘q';
+      .join('\n') || (lang === 'uz' ? '  Hozircha yo‘q' : '  Пока нет');
 
   const faqLines =
     summary.popularFaqTopics
       .map((f, i) => `  ${i + 1}. ${FAQ_LABELS[f.topic] || f.topic} — <b>${f.count} marta</b>`)
-      .join('\n') || '  Hozircha yo‘q';
+      .join('\n') || (lang === 'uz' ? '  Hozircha yo‘q' : '  Пока нет');
+
+  const last7DaysLines =
+    summary.last7Days && summary.last7Days.length > 0
+      ? summary.last7Days
+          .map(
+            (d) =>
+              `  📅 <code>${d.date}</code>: 👤 <b>${d.users}</b> | 🔍 <b>${d.searches}</b> | 🎫 <b>${d.tickets}</b>`,
+          )
+          .join('\n')
+      : lang === 'uz'
+      ? '  Hozircha maʼlumot yo‘q'
+      : '  Пока данных нет';
+
+  if (lang === 'ru') {
+    return [
+      `📊 <b>OnegoPost Bot — Панель Администратора</b>`,
+      ``,
+      `⚡ <b>ПОКАЗАТЕЛИ ЗА СЕГОДНЯ:</b>`,
+      `  • 👥 Новые пользователи: <b>${summary.usersToday}</b>`,
+      `  • 🔍 Поисков посылок: <b>${summary.searchesToday}</b>`,
+      `  • 🎫 Новых тикетов: <b>${summary.ticketsToday}</b>`,
+      `  • ✅ Решено тикетов: <b>${summary.resolvedTicketsToday}</b>`,
+      `  • 📲 Переходов в приложение: <b>${summary.deepLinkClicksToday}</b>`,
+      ``,
+      `🌐 <b>ОБЩИЕ ПОКАЗАТЕЛИ (ЗА ВСЁ ВРЕМЯ):</b>`,
+      `  • 👥 Всего пользователей: <b>${summary.totalUsers}</b>`,
+      `  • 🔍 Всего поисков: <b>${summary.totalSearches}</b>`,
+      `  • 🎫 Всего тикетов: <b>${summary.totalTickets}</b>`,
+      `  • ⏳ Нерешённых тикетов: <b>${summary.unresolvedTickets}</b>`,
+      `  • 📲 Всего переходов в приложение: <b>${summary.deepLinkClicks}</b>`,
+      ``,
+      `<b>📅 Активность за последние 7 дней:</b>`,
+      last7DaysLines,
+      ``,
+      `<b>По категориям тикетов:</b>`,
+      categoryLines,
+      ``,
+      `<b>По статусам тикетов:</b>`,
+      statusLines,
+      ``,
+      `❓ <b>Часто просматриваемые FAQ:</b>`,
+      faqLines,
+    ].join('\n');
+  }
 
   return [
     `📊 <b>OnegoPost Bot — Admin Statistika</b>`,
     ``,
-    `👥 <b>Jami foydalanuvchilar:</b> ${summary.totalUsers} nafar`,
-    `🔍 <b>Bugungi qidiruvlar:</b> ${summary.searchesToday} ta`,
-    `🔍 <b>Jami qidiruvlar:</b> ${summary.totalSearches} ta`,
+    `⚡ <b>BUGUNGI KO‘RSATKICHLAR:</b>`,
+    `  • 👥 Yangi foydalanuvchilar: <b>${summary.usersToday} nafar</b>`,
+    `  • 🔍 Qidiruvlar soni: <b>${summary.searchesToday} ta</b>`,
+    `  • 🎫 Yangi ochilgan ticketlar: <b>${summary.ticketsToday} ta</b>`,
+    `  • ✅ Hal qilingan ticketlar: <b>${summary.resolvedTicketsToday} ta</b>`,
+    `  • 📲 Ilovaga o‘tishlar: <b>${summary.deepLinkClicksToday} marta</b>`,
     ``,
-    `🎫 <b>Jami ticketlar:</b> ${summary.totalTickets} ta`,
-    `<b>Mavzular bo‘yicha:</b>`,
+    `🌐 <b>UMUMIY KO‘RSATKICHLAR:</b>`,
+    `  • 👥 Jami foydalanuvchilar: <b>${summary.totalUsers} nafar</b>`,
+    `  • 🔍 Jami qidiruvlar: <b>${summary.totalSearches} ta</b>`,
+    `  • 🎫 Jami ochilgan ticketlar: <b>${summary.totalTickets} ta</b>`,
+    `  • ⏳ Hali yechilmagan ticketlar: <b>${summary.unresolvedTickets} ta</b>`,
+    `  • 📲 Jami ilovaga o‘tishlar: <b>${summary.deepLinkClicks} marta</b>`,
+    ``,
+    `<b>📅 Oxirgi 7 kunlik faollik:</b>`,
+    last7DaysLines,
+    ``,
+    `<b>Ticketlar mavzular bo‘yicha:</b>`,
     categoryLines,
     ``,
     `<b>Statuslar bo‘yicha:</b>`,
     statusLines,
     ``,
-    `📲 <b>Ilovaga o‘tishlar (deep link):</b> ${summary.deepLinkClicks} marta`,
-    ``,
     `❓ <b>Eng ko‘p o‘qilgan FAQ savollari:</b>`,
+    faqLines,
+  ].join('\n');
+}
+
+export function formatDailyStats(daily: DailyAnalyticsSummary, lang: 'uz' | 'ru' = 'uz'): string {
+  const categoryLines =
+    Object.entries(daily.ticketsByCategory)
+      .map(([cat, count]) => `  • ${CATEGORY_LABELS[cat] || cat}: <b>${count} ta</b>`)
+      .join('\n') || (lang === 'uz' ? '  Bugun ticket ochilmadi' : '  Сегодня тикетов не было');
+
+  const statusLines =
+    Object.entries(daily.ticketsByStatus)
+      .map(([status, count]) => `  • ${STATUS_LABELS[status] || status}: <b>${count} ta</b>`)
+      .join('\n') || (lang === 'uz' ? '  Status mavjud emas' : '  Статусов нет');
+
+  const faqLines =
+    daily.popularFaqTopics
+      .map((f, i) => `  ${i + 1}. ${FAQ_LABELS[f.topic] || f.topic} — <b>${f.count} marta</b>`)
+      .join('\n') || (lang === 'uz' ? '  Bugun FAQ ko‘rilmadi' : '  Сегодня FAQ не просматривали');
+
+  if (lang === 'ru') {
+    return [
+      `📅 <b>OneGoPost — Статистика за сегодня (${daily.date})</b>`,
+      ``,
+      `👥 <b>Новые пользователи:</b> <b>${daily.usersCount}</b> чел.`,
+      `🔍 <b>Поисков посылок:</b> <b>${daily.searchesCount}</b> раз`,
+      `🎫 <b>Создано новых тикетов:</b> <b>${daily.ticketsCount}</b> шт.`,
+      `✅ <b>Решено тикетов:</b> <b>${daily.resolvedTickets}</b> шт.`,
+      `📲 <b>Переходов в моб. приложение:</b> <b>${daily.deepLinkClicks}</b> раз`,
+      ``,
+      `<b>📌 Тикеты по темам (за сегодня):</b>`,
+      categoryLines,
+      ``,
+      `<b>📍 Статусы тикетов:</b>`,
+      statusLines,
+      ``,
+      `<b>❓ Популярные FAQ (за сегодня):</b>`,
+      faqLines,
+    ].join('\n');
+  }
+
+  return [
+    `📅 <b>OneGoPost — Bugungi Kunlik Statistika (${daily.date})</b>`,
+    ``,
+    `👥 <b>Bugun qo‘shilgan foydalanuvchilar:</b> <b>${daily.usersCount}</b> nafar`,
+    `🔍 <b>Bugungi posilka qidiruvlari:</b> <b>${daily.searchesCount}</b> ta`,
+    `🎫 <b>Bugun ochilgan yangi ticketlar:</b> <b>${daily.ticketsCount}</b> ta`,
+    `✅ <b>Bugun hal qilingan ticketlar:</b> <b>${daily.resolvedTickets}</b> ta`,
+    `📲 <b>Ilovaga o‘tishlar (ichki chat):</b> <b>${daily.deepLinkClicks}</b> marta`,
+    ``,
+    `<b>📌 Bugungi ticketlar mavzusi:</b>`,
+    categoryLines,
+    ``,
+    `<b>📍 Ticketlar holati:</b>`,
+    statusLines,
+    ``,
+    `<b>❓ Bugun eng ko‘p o‘qilgan FAQ:</b>`,
     faqLines,
   ].join('\n');
 }

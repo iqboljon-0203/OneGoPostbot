@@ -41,9 +41,10 @@ export const env = {
   INTERNAL_CHAT_URL:
     process.env.INTERNAL_CHAT_URL ||
     `${(process.env.DEEPLINK_BASE_URL || 'https://www.onegopost.com').replace(/\/+$/, '')}/support/chat`,
-  SUPPORT_TELEGRAM_URL: process.env.SUPPORT_TELEGRAM_URL || 'https://t.me/Onegopostadmin',
+  SUPPORT_TELEGRAM_URL: process.env.SUPPORT_TELEGRAM_URL || 'https://t.me/onegopost_admin',
   APP_STORE_URL: process.env.APP_STORE_URL || 'https://apps.apple.com/uz/app/onegopost/id6763209482',
   PLAY_STORE_URL: process.env.PLAY_STORE_URL || 'https://play.google.com/store/apps/details?id=com.wangouyou.onegopost',
+  WEB_APP_DOWNLOAD_URL: process.env.WEB_APP_DOWNLOAD_URL || 'https://www.onegopost.com/app.html',
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
   ADMIN_TELEGRAM_IDS: parseAdminIds(process.env.ADMIN_TELEGRAM_IDS),
 } as const;

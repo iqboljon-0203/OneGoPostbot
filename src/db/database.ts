@@ -155,15 +155,133 @@ export function trackEvent(
   stmt.run(telegramId, eventType, JSON.stringify(metadata ?? {}));
 }
 
+export interface DayHistoryItem {
+  date: string;
+  users: number;
+  searches: number;
+  tickets: number;
+}
+
 export interface AnalyticsSummary {
   totalUsers: number;
+  usersToday: number;
   searchesToday: number;
   totalSearches: number;
+  ticketsToday: number;
+  totalTickets: number;
+  unresolvedTickets: number;
+  resolvedTicketsToday: number;
+  deepLinkClicksToday: number;
+  deepLinkClicks: number;
   ticketsByCategory: Record<string, number>;
   ticketsByStatus: Record<string, number>;
-  deepLinkClicks: number;
   popularFaqTopics: Array<{ topic: string; count: number }>;
-  totalTickets: number;
+  last7Days: DayHistoryItem[];
+}
+
+export interface DailyAnalyticsSummary {
+  date: string;
+  usersCount: number;
+  searchesCount: number;
+  ticketsCount: number;
+  resolvedTickets: number;
+  deepLinkClicks: number;
+  ticketsByCategory: Record<string, number>;
+  ticketsByStatus: Record<string, number>;
+  popularFaqTopics: Array<{ topic: string; count: number }>;
+}
+
+export function getDailyAnalytics(targetDate?: string): DailyAnalyticsSummary {
+  const db = getDb();
+  // Default to today in Tashkent timezone (UTC+5)
+  const date =
+    targetDate ||
+    (
+      db.prepare("SELECT date('now', '+5 hours') AS today").get() as {
+        today: string;
+      }
+    ).today;
+
+  const usersCount = (
+    db
+      .prepare("SELECT COUNT(*) AS cnt FROM users WHERE date(created_at, '+5 hours') = ?")
+      .get(date) as { cnt: number }
+  ).cnt;
+
+  const searchesCount = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS cnt FROM analytics_events
+         WHERE event_type = 'tracking_lookup' AND date(created_at, '+5 hours') = ?`,
+      )
+      .get(date) as { cnt: number }
+  ).cnt;
+
+  const ticketsCount = (
+    db
+      .prepare("SELECT COUNT(*) AS cnt FROM tickets WHERE date(created_at, '+5 hours') = ?")
+      .get(date) as { cnt: number }
+  ).cnt;
+
+  const resolvedTickets = (
+    db
+      .prepare(
+        "SELECT COUNT(*) AS cnt FROM tickets WHERE status = 'resolved' AND date(updated_at, '+5 hours') = ?",
+      )
+      .get(date) as { cnt: number }
+  ).cnt;
+
+  const deepLinkClicks = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS cnt FROM analytics_events
+         WHERE event_type IN ('deeplink_generated', 'deeplink_clicked', 'app_deeplink_click')
+           AND date(created_at, '+5 hours') = ?`,
+      )
+      .get(date) as { cnt: number }
+  ).cnt;
+
+  const ticketCatRows = db
+    .prepare(
+      "SELECT issue_type, COUNT(*) AS cnt FROM tickets WHERE date(created_at, '+5 hours') = ? GROUP BY issue_type",
+    )
+    .all(date) as Array<{ issue_type: string; cnt: number }>;
+  const ticketsByCategory: Record<string, number> = {};
+  for (const row of ticketCatRows) {
+    ticketsByCategory[row.issue_type] = row.cnt;
+  }
+
+  const ticketStatusRows = db
+    .prepare(
+      "SELECT status, COUNT(*) AS cnt FROM tickets WHERE date(created_at, '+5 hours') = ? GROUP BY status",
+    )
+    .all(date) as Array<{ status: string; cnt: number }>;
+  const ticketsByStatus: Record<string, number> = {};
+  for (const row of ticketStatusRows) {
+    ticketsByStatus[row.status] = row.cnt;
+  }
+
+  const faqRowsRaw = db
+    .prepare(
+      `SELECT json_extract(metadata, '$.faq_id') AS topic, COUNT(*) AS cnt
+       FROM analytics_events
+       WHERE event_type = 'faq_viewed' AND topic IS NOT NULL AND date(created_at, '+5 hours') = ?
+       GROUP BY topic ORDER BY cnt DESC LIMIT 5`,
+    )
+    .all(date) as Array<{ topic: string; cnt: number }>;
+  const faqRows = faqRowsRaw.map((r) => ({ topic: r.topic, count: r.cnt }));
+
+  return {
+    date,
+    usersCount,
+    searchesCount,
+    ticketsCount,
+    resolvedTickets,
+    deepLinkClicks,
+    ticketsByCategory,
+    ticketsByStatus,
+    popularFaqTopics: faqRows,
+  };
 }
 
 export function getAnalyticsSummary(): AnalyticsSummary {
@@ -174,12 +292,21 @@ export function getAnalyticsSummary(): AnalyticsSummary {
     db.prepare('SELECT COUNT(*) AS cnt FROM users').get() as { cnt: number }
   ).cnt;
 
-  // Searches today
+  // Users today (UTC+5)
+  const usersToday = (
+    db
+      .prepare(
+        "SELECT COUNT(*) AS cnt FROM users WHERE date(created_at, '+5 hours') = date('now', '+5 hours')",
+      )
+      .get() as { cnt: number }
+  ).cnt;
+
+  // Searches today (UTC+5)
   const searchesToday = (
     db
       .prepare(
         `SELECT COUNT(*) AS cnt FROM analytics_events
-         WHERE event_type = 'tracking_lookup' AND date(created_at) = date('now')`,
+         WHERE event_type = 'tracking_lookup' AND date(created_at, '+5 hours') = date('now', '+5 hours')`,
       )
       .get() as { cnt: number }
   ).cnt;
@@ -189,6 +316,34 @@ export function getAnalyticsSummary(): AnalyticsSummary {
     db
       .prepare(`SELECT COUNT(*) AS cnt FROM analytics_events WHERE event_type = 'tracking_lookup'`)
       .get() as { cnt: number }
+  ).cnt;
+
+  // Tickets today (UTC+5)
+  const ticketsToday = (
+    db
+      .prepare(
+        "SELECT COUNT(*) AS cnt FROM tickets WHERE date(created_at, '+5 hours') = date('now', '+5 hours')",
+      )
+      .get() as { cnt: number }
+  ).cnt;
+
+  // Resolved tickets today (UTC+5)
+  const resolvedTicketsToday = (
+    db
+      .prepare(
+        "SELECT COUNT(*) AS cnt FROM tickets WHERE status = 'resolved' AND date(updated_at, '+5 hours') = date('now', '+5 hours')",
+      )
+      .get() as { cnt: number }
+  ).cnt;
+
+  // Total tickets
+  const totalTickets = (
+    db.prepare('SELECT COUNT(*) AS cnt FROM tickets').get() as { cnt: number }
+  ).cnt;
+
+  // Unresolved tickets (new, in_review, transferred)
+  const unresolvedTickets = (
+    db.prepare("SELECT COUNT(*) AS cnt FROM tickets WHERE status != 'resolved'").get() as { cnt: number }
   ).cnt;
 
   // Tickets by category (issue_type)
@@ -209,10 +364,24 @@ export function getAnalyticsSummary(): AnalyticsSummary {
     ticketsByStatus[row.status] = row.cnt;
   }
 
-  // Deep link clicks
+  // Deep link clicks today (UTC+5)
+  const deepLinkClicksToday = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS cnt FROM analytics_events
+         WHERE event_type IN ('deeplink_generated', 'deeplink_clicked', 'app_deeplink_click')
+           AND date(created_at, '+5 hours') = date('now', '+5 hours')`,
+      )
+      .get() as { cnt: number }
+  ).cnt;
+
+  // Total deep link clicks
   const deepLinkClicks = (
     db
-      .prepare(`SELECT COUNT(*) AS cnt FROM analytics_events WHERE event_type = 'deeplink_generated'`)
+      .prepare(
+        `SELECT COUNT(*) AS cnt FROM analytics_events
+         WHERE event_type IN ('deeplink_generated', 'deeplink_clicked', 'app_deeplink_click')`,
+      )
       .get() as { cnt: number }
   ).cnt;
 
@@ -227,21 +396,60 @@ export function getAnalyticsSummary(): AnalyticsSummary {
     .all() as Array<{ topic: string; cnt: number }>;
   const faqRows = faqRowsRaw.map((r) => ({ topic: r.topic, count: r.cnt }));
 
-  // Total tickets
-  const totalTickets = (
-    db.prepare('SELECT COUNT(*) AS cnt FROM tickets').get() as { cnt: number }
-  ).cnt;
+  // Last 7 days breakdown (Tashkent timezone UTC+5)
+  const last7Days = db
+    .prepare(
+      `WITH RECURSIVE days(d) AS (
+         SELECT date('now', '+5 hours', '-6 days')
+         UNION ALL
+         SELECT date(d, '+1 day') FROM days WHERE d < date('now', '+5 hours')
+       )
+       SELECT 
+         days.d AS date,
+         (SELECT COUNT(*) FROM users WHERE date(created_at, '+5 hours') = days.d) AS users,
+         (SELECT COUNT(*) FROM analytics_events WHERE event_type = 'tracking_lookup' AND date(created_at, '+5 hours') = days.d) AS searches,
+         (SELECT COUNT(*) FROM tickets WHERE date(created_at, '+5 hours') = days.d) AS tickets
+       FROM days
+       ORDER BY days.d DESC`,
+    )
+    .all() as DayHistoryItem[];
 
   return {
     totalUsers,
+    usersToday,
     searchesToday,
     totalSearches,
+    ticketsToday,
+    totalTickets,
+    unresolvedTickets,
+    resolvedTicketsToday,
+    deepLinkClicksToday,
+    deepLinkClicks,
     ticketsByCategory,
     ticketsByStatus,
-    deepLinkClicks,
     popularFaqTopics: faqRows,
-    totalTickets,
+    last7Days,
   };
+}
+
+// ─── Reset All Analytics and Data ───────────────────────────────
+
+export function resetAllData(): void {
+  const db = getDb();
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    DELETE FROM tickets;
+    DELETE FROM analytics_events;
+    DELETE FROM users;
+  `);
+  try {
+    db.exec(`DELETE FROM sqlite_sequence WHERE name IN ('tickets', 'analytics_events', 'users');`);
+  } catch {
+    // sqlite_sequence may not exist if no autoincrement yet
+  }
+  db.exec('VACUUM;');
+  db.pragma('foreign_keys = ON');
+  logger.info('Database statistics and data successfully reset to 0');
 }
 
 // ─── Graceful Shutdown ──────────────────────────────────────────

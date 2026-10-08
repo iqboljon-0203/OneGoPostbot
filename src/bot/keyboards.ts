@@ -12,11 +12,13 @@ import { env } from '../config/env';
  * Mobile apps download keyboard (App Store & Google Play).
  */
 export function appDownloadKeyboard(lang: 'uz' | 'ru') {
-  const iosText = lang === 'uz' ? '🍏 App Store (iPhone)' : '🍏 App Store (iPhone)';
-  const androidText = lang === 'uz' ? '🤖 Google Play (Android)' : '🤖 Google Play (Android)';
+  const iosText = '🍏 App Store (iPhone)';
+  const androidText = '🤖 Google Play (Android)';
+  const webText = lang === 'uz' ? '🌐 Web sayt (Google)' : '🌐 Веб-сайт (Google)';
   return Markup.inlineKeyboard([
     [Markup.button.url(iosText, env.APP_STORE_URL)],
     [Markup.button.url(androidText, env.PLAY_STORE_URL)],
+    [Markup.button.url(webText, env.WEB_APP_DOWNLOAD_URL)],
   ]);
 }
 
@@ -33,16 +35,73 @@ export function languageKeyboard() {
 }
 
 /**
- * Main menu reply keyboard with the 7 key sections + language change.
+ * Main menu reply keyboard with the key sections + language change + admin panel for admins.
  */
-export function mainMenuKeyboard(lang: 'uz' | 'ru') {
+export function mainMenuKeyboard(lang: 'uz' | 'ru', isAdmin = false) {
   const m = messages[lang].menu;
-  return Markup.keyboard([
+  const rows: string[][] = [
     [m.tracking, m.delay],
     [m.payment, m.weight],
     [m.warehouse, m.faq],
+    [m.tashkentWarehouse, m.workingHours],
     [m.operator, m.changeLang],
-  ]).resize();
+  ];
+  if (isAdmin) {
+    rows.push([m.adminPanel]);
+  }
+  return Markup.keyboard(rows).resize();
+}
+
+/**
+ * Inline keyboard with Admin Panel actions (Web Dashboard URL & Refresh button).
+ */
+export function adminPanelInlineKeyboard(lang: 'uz' | 'ru', currentView: 'all' | 'daily' = 'all') {
+  const baseUrl = env.INTERNAL_CHAT_URL ? env.INTERNAL_CHAT_URL.replace(/\/support\/chat.*$/, '') : 'http://43.172.85.77';
+  const adminUrl = `${baseUrl}/admin`;
+
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback(
+        lang === 'uz'
+          ? (currentView === 'daily' ? '📅 Bugungi (faol)' : '📅 Bugungi statistika')
+          : (currentView === 'daily' ? '📅 За сегодня (актив)' : '📅 За сегодня'),
+        'view_daily_stats',
+      ),
+      Markup.button.callback(
+        lang === 'uz'
+          ? (currentView === 'all' ? '📊 Umumiy (faol)' : '📊 Umumiy statistika')
+          : (currentView === 'all' ? '📊 Общая (актив)' : '📊 Общая статистика'),
+        'view_all_stats',
+      ),
+    ],
+    [
+      Markup.button.callback(
+        lang === 'uz' ? '🔄 Yangilash' : '🔄 Обновить',
+        currentView === 'daily' ? 'refresh_daily_stats' : 'refresh_admin_stats',
+      ),
+    ],
+    [
+      Markup.button.url(
+        lang === 'uz' ? '🌐 Veb Admin Panelga o‘tish' : '🌐 Открыть веб админ-панель',
+        adminUrl,
+      ),
+    ],
+  ]);
+}
+
+/**
+ * Inline keyboard with location maps links (Google Maps & Yandex Maps).
+ */
+export function tashkentWarehouseKeyboard(lang: 'uz' | 'ru') {
+  const googleMapsUrl = 'https://maps.google.com/maps?q=41.278000,69.241642&ll=41.278000,69.241642&z=16';
+  const yandexMapsUrl = 'https://yandex.uz/maps/?pt=69.241642,41.278000&z=16&l=map';
+
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.url('🗺 Google Maps', googleMapsUrl),
+      Markup.button.url(lang === 'uz' ? '📍 Yandex Maps' : '📍 Яндекс Карты', yandexMapsUrl),
+    ],
+  ]);
 }
 
 /**

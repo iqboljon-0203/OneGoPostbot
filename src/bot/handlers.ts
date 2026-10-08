@@ -9,6 +9,7 @@ import {
   createTicket,
   getTicket,
   trackEvent,
+  resetAllData,
 } from '../db/database';
 import {
   messages,
@@ -16,6 +17,7 @@ import {
   formatTrackingTimeline,
   formatComprehensiveTrackingCard,
   formatAdminStats,
+  formatDailyStats,
 } from './messages';
 import {
   languageKeyboard,
@@ -25,10 +27,12 @@ import {
   trackingResultKeyboard,
   supportDirectKeyboard,
   appDownloadKeyboard,
+  tashkentWarehouseKeyboard,
+  adminPanelInlineKeyboard,
   faqListKeyboard,
   faqBackKeyboard,
 } from './keyboards';
-import { getAnalyticsSummary } from '../db/database';
+import { getAnalyticsSummary, getDailyAnalytics } from '../db/database';
 
 // ─── Bot Context & Session Definition ─────────────────────────────
 
@@ -67,7 +71,7 @@ function defaultSession(): BotSession {
  * Examples: 100081, 387183
  */
 function isClientId(text: string): boolean {
-  return /^\d{5,7}$/.test(text);
+  return /^(UZ)?\d{5,7}$/i.test(text.trim());
 }
 
 /**
@@ -117,6 +121,10 @@ export function registerHandlers(bot: Telegraf<BotContext>): void {
     const ruM = Object.values(messages.ru.menu);
     return uzM.includes(text as any) || ruM.includes(text as any);
   };
+
+  // Helper to construct main menu keyboard with admin button for authorized admins
+  const getMenu = (ctx: BotContext) =>
+    mainMenuKeyboard(getLang(ctx), isAdmin(ctx.from?.id ?? 0));
 
   // ─── /start command ─────────────────────────────────────────────
   bot.command('start', async (ctx) => {
@@ -190,8 +198,141 @@ export function registerHandlers(bot: Telegraf<BotContext>): void {
     }
 
     const summary = getAnalyticsSummary();
-    const report = formatAdminStats(summary);
-    await ctx.reply(report, { parse_mode: 'HTML' });
+    const report = formatAdminStats(summary, lang);
+    await ctx.reply(report, {
+      parse_mode: 'HTML',
+      ...adminPanelInlineKeyboard(lang, 'all'),
+    });
+  });
+
+  // ─── /today or /daily command — daily analytics ──────────────────
+  bot.command(['today', 'daily'], async (ctx) => {
+    const lang = getLang(ctx);
+    const tgId = ctx.from?.id ?? 0;
+
+    if (!isAdmin(tgId)) {
+      await ctx.reply(messages[lang].adminOnly, { parse_mode: 'HTML' });
+      return;
+    }
+
+    const daily = getDailyAnalytics();
+    const report = formatDailyStats(daily, lang);
+    await ctx.reply(report, {
+      parse_mode: 'HTML',
+      ...adminPanelInlineKeyboard(lang, 'daily'),
+    });
+  });
+
+  bot.action('view_daily_stats', async (ctx) => {
+    const lang = getLang(ctx);
+    const tgId = ctx.from?.id ?? 0;
+
+    if (!isAdmin(tgId)) {
+      await ctx.answerCbQuery(messages[lang].adminOnly, { show_alert: true }).catch(() => {});
+      return;
+    }
+
+    await ctx.answerCbQuery().catch(() => {});
+    const daily = getDailyAnalytics();
+    const report = formatDailyStats(daily, lang);
+    try {
+      await ctx.editMessageText(report, {
+        parse_mode: 'HTML',
+        ...adminPanelInlineKeyboard(lang, 'daily'),
+      });
+    } catch {
+      // Message content is unchanged
+    }
+  });
+
+  bot.action('view_all_stats', async (ctx) => {
+    const lang = getLang(ctx);
+    const tgId = ctx.from?.id ?? 0;
+
+    if (!isAdmin(tgId)) {
+      await ctx.answerCbQuery(messages[lang].adminOnly, { show_alert: true }).catch(() => {});
+      return;
+    }
+
+    await ctx.answerCbQuery().catch(() => {});
+    const summary = getAnalyticsSummary();
+    const report = formatAdminStats(summary, lang);
+    try {
+      await ctx.editMessageText(report, {
+        parse_mode: 'HTML',
+        ...adminPanelInlineKeyboard(lang, 'all'),
+      });
+    } catch {
+      // Message content is unchanged
+    }
+  });
+
+  bot.action('refresh_daily_stats', async (ctx) => {
+    const lang = getLang(ctx);
+    const tgId = ctx.from?.id ?? 0;
+
+    if (!isAdmin(tgId)) {
+      await ctx.answerCbQuery(messages[lang].adminOnly, { show_alert: true }).catch(() => {});
+      return;
+    }
+
+    await ctx.answerCbQuery(lang === 'uz' ? 'Yangilandi ✅' : 'Обновлено ✅').catch(() => {});
+    const daily = getDailyAnalytics();
+    const report = formatDailyStats(daily, lang);
+    try {
+      await ctx.editMessageText(report, {
+        parse_mode: 'HTML',
+        ...adminPanelInlineKeyboard(lang, 'daily'),
+      });
+    } catch {
+      // Message content is unchanged
+    }
+  });
+
+  bot.action('refresh_admin_stats', async (ctx) => {
+    const lang = getLang(ctx);
+    const tgId = ctx.from?.id ?? 0;
+
+    if (!isAdmin(tgId)) {
+      await ctx.answerCbQuery(messages[lang].adminOnly, { show_alert: true }).catch(() => {});
+      return;
+    }
+
+    await ctx.answerCbQuery(lang === 'uz' ? 'Yangilandi ✅' : 'Обновлено ✅').catch(() => {});
+
+    const summary = getAnalyticsSummary();
+    const report = formatAdminStats(summary, lang);
+    try {
+      await ctx.editMessageText(report, {
+        parse_mode: 'HTML',
+        ...adminPanelInlineKeyboard(lang, 'all'),
+      });
+    } catch {
+      // Message content is unchanged
+    }
+  });
+
+  // ─── Reset Admin Stats Command (/resetstats) ──────────────────────
+  bot.command('resetstats', async (ctx) => {
+    const lang = getLang(ctx);
+    const tgId = ctx.from?.id ?? 0;
+
+    if (!isAdmin(tgId)) {
+      await ctx.reply(messages[lang].adminOnly, { parse_mode: 'HTML' });
+      return;
+    }
+
+    try {
+      resetAllData();
+      const msg =
+        lang === 'uz'
+          ? '🗑 <b>Admin statistikasi muvaffaqiyatli 0 ga tushirildi!</b>\n\nBarcha ko‘rsatkichlar (foydalanuvchilar, qidiruvlar, ticketlar va hodisalar) tozalandi va 0 dan hisoblash boshlandi.'
+          : '🗑 <b>Статистика админ-панели успешно сброшена!</b>\n\nВсе показатели (пользователи, поиски, тикеты и события) очищены и отсчет начат с 0.';
+      await ctx.reply(msg, { parse_mode: 'HTML' });
+    } catch (err: any) {
+      botLogger.error({ err }, 'Error resetting admin stats');
+      await ctx.reply(messages[lang].errorOccurred);
+    }
   });
 
   // ─── Language Callback Actions ──────────────────────────────────
@@ -207,7 +348,7 @@ export function registerHandlers(bot: Telegraf<BotContext>): void {
     await ctx.reply(messages.uz.languageSelected);
     await ctx.reply(messages.uz.welcome, {
       parse_mode: 'HTML',
-      ...mainMenuKeyboard('uz'),
+      ...getMenu(ctx),
     });
   });
 
@@ -223,7 +364,7 @@ export function registerHandlers(bot: Telegraf<BotContext>): void {
     await ctx.reply(messages.ru.languageSelected);
     await ctx.reply(messages.ru.welcome, {
       parse_mode: 'HTML',
-      ...mainMenuKeyboard('ru'),
+      ...getMenu(ctx),
     });
   });
 
@@ -373,6 +514,65 @@ export function registerHandlers(bot: Telegraf<BotContext>): void {
     });
   });
 
+  // 8. 📍 Toshkent ombori qayerda?
+  bot.hears(
+    [messages.uz.menu.tashkentWarehouse, messages.ru.menu.tashkentWarehouse],
+    async (ctx) => {
+      const lang = getLang(ctx);
+      ctx.session.state = 'idle';
+
+      trackEvent(ctx.from?.id ?? 0, 'menu_click', { menu: 'tashkent_warehouse' });
+
+      // Send Telegram native location pin
+      await ctx.replyWithLocation(41.278, 69.241642);
+
+      // Send address details and direct Google / Yandex maps buttons
+      await ctx.reply(messages[lang].tashkentWarehouseInfo, {
+        parse_mode: 'HTML',
+        ...tashkentWarehouseKeyboard(lang),
+      });
+    },
+  );
+
+  // 9. 🕒 Ish vaqti
+  bot.hears(
+    [messages.uz.menu.workingHours, messages.ru.menu.workingHours],
+    async (ctx) => {
+      const lang = getLang(ctx);
+      ctx.session.state = 'idle';
+
+      trackEvent(ctx.from?.id ?? 0, 'menu_click', { menu: 'working_hours' });
+
+      await ctx.reply(messages[lang].workingHoursInfo, {
+        parse_mode: 'HTML',
+      });
+    },
+  );
+
+  // 10. ⚙️ Admin panel button (for admins)
+  bot.hears(
+    [messages.uz.menu.adminPanel, messages.ru.menu.adminPanel],
+    async (ctx) => {
+      const lang = getLang(ctx);
+      const tgId = ctx.from?.id ?? 0;
+
+      if (!isAdmin(tgId)) {
+        await ctx.reply(messages[lang].adminOnly, { parse_mode: 'HTML' });
+        return;
+      }
+
+      ctx.session.state = 'idle';
+      trackEvent(tgId, 'admin_panel_opened');
+
+      const summary = getAnalyticsSummary();
+      const report = formatAdminStats(summary, lang);
+      await ctx.reply(report, {
+        parse_mode: 'HTML',
+        ...adminPanelInlineKeyboard(lang, 'all'),
+      });
+    },
+  );
+
   // Change Language Button
   bot.hears([messages.uz.menu.changeLang, messages.ru.menu.changeLang], async (ctx) => {
     await ctx.reply(messages.uz.chooseLanguage, {
@@ -386,7 +586,7 @@ export function registerHandlers(bot: Telegraf<BotContext>): void {
     const lang = getLang(ctx);
     ctx.session.state = 'idle';
     ctx.session.tempAwb = undefined;
-    await ctx.reply(messages[lang].cancelled, mainMenuKeyboard(lang));
+    await ctx.reply(messages[lang].cancelled, getMenu(ctx));
   });
 
   // ─── Text / FSM State Machine ───────────────────────────────────
@@ -439,7 +639,7 @@ export function registerHandlers(bot: Telegraf<BotContext>): void {
         trackEvent(tgId, 'deeplink_generated', { reason: 'client_id_redirect' });
 
         ctx.session.state = 'idle';
-        await ctx.reply(messages[lang].menu.backToMenu, mainMenuKeyboard(lang));
+        await ctx.reply(messages[lang].menu.backToMenu, getMenu(ctx));
         return;
       }
 
@@ -532,7 +732,7 @@ export function registerHandlers(bot: Telegraf<BotContext>): void {
       }
 
       ctx.session.state = 'idle';
-      await ctx.reply(messages[lang].menu.backToMenu, mainMenuKeyboard(lang));
+      await ctx.reply(messages[lang].menu.backToMenu, getMenu(ctx));
       return;
     }
 
@@ -676,7 +876,7 @@ export function registerHandlers(bot: Telegraf<BotContext>): void {
         userName,
       }),
     );
-    await ctx.reply(messages[lang].menu.backToMenu, mainMenuKeyboard(lang));
+    await ctx.reply(messages[lang].menu.backToMenu, getMenu(ctx));
 
     ctx.session.state = 'idle';
     ctx.session.tempAwb = undefined;
